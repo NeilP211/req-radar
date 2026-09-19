@@ -1,0 +1,70 @@
+name: Check boards
+
+# Every two hours. Zoom reviews intern applications on a rolling basis and the first two weeks of a
+# posting are where the odds are, so the useful resolution is hours, not days.
+
+on:
+  schedule:
+    - cron: '13 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_push:
+        description: Send a test push instead of checking the boards
+        type: boolean
+        default: false
+      dry_run:
+        description: Print the pushes instead of sending them
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: check-boards
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test
+        run: npm test
+
+      - name: Send a test push
+        if: inputs.test_push
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/notify.mjs --test
+
+      - name: Check the boards
+        if: ${{ !inputs.test_push }}
+        run: node scripts/check.mjs
+
+      # Before the state commit, on purpose. A failed push leaves state/seen.json alone, so the
+      # next run tries the same req again rather than losing it.
+      - name: Push any new reqs
+        if: ${{ !inputs.test_push }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: node scripts/notify.mjs new.json
+
+      - name: Remember what is on the boards now
+        if: ${{ !inputs.test_push && !inputs.dry_run }}
+        run: |
+          if git diff --quiet state/seen.json; then
+            echo "no change"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/seen.json
+          git commit -m "Update board state"
+          git push
