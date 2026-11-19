@@ -4,7 +4,7 @@ Watches company job boards for internship and new grad reqs, and pushes a phone 
 opens. Companion to [Recruiter Radar](https://github.com/NeilP211/recruiter-radar), which watches
 career *events*. This one watches the *reqs*.
 
-Currently watching: **Zoom** (Workday), **Reddit** and **HubSpot** (Greenhouse).
+Currently watching: **Zoom** (its careers site feed), **Reddit** and **HubSpot** (Greenhouse).
 
 ## Why this exists
 
@@ -28,9 +28,15 @@ that read like a student req, and compares them against `state/seen.json`, which
 commits back to the repo after each run. Anything not seen before goes to `scripts/notify.mjs`,
 which pushes it to [ntfy](https://ntfy.sh). It runs every two hours.
 
-If one board fails (Zoom's Workday answers HTTP 429 a few times a day), that board keeps its old
-state and is retried next run, and the other boards still alert. The run only fails when every
-board failed.
+If one board fails, that board keeps its old state and is retried next run, and the other boards
+still alert. The run only fails when every board failed.
+
+**Zoom moved off Workday on 2026-11-19.** From 2026-11-17 Zoom's Workday API
+(`zoom.wd5.myworkdayjobs.com`) answered almost every script request with a Cloudflare challenge
+(HTTP 429, `cf-mitigated: challenge`), from GitHub's runners and from a home connection alike, so
+retries and backoff could not fix it. Zoom's own careers site, careers.zoom.us, loads its jobs from
+a Shazamme feed with one plain GET: same 72 reqs, same Workday req ids, added the day they post.
+Req Radar reads that feed now. The Workday adapter stays for other companies.
 
 Three decisions worth knowing:
 
@@ -86,7 +92,14 @@ A Greenhouse board needs only its board token, the last part of
 { "id": "reddit", "company": "Reddit", "board": "greenhouse", "token": "reddit", "todoist": true }
 ```
 
-Workday and Greenhouse have adapters. Another board type is a function in
+A Shazamme board (the jobs widget some careers sites are built on) needs its site id, which is the
+last part of the `shazamme.io/job-results/{siteId}` request the careers page makes:
+
+```json
+{ "id": "zoom", "company": "Zoom", "board": "shazamme", "siteId": "a5bcebfa-981b-46cd-b46f-ad91a50505b8" }
+```
+
+Workday, Greenhouse and Shazamme have adapters. Another board type is a function in
 `scripts/lib/boards.mjs` that returns `{ id, title, location, url, company }` plus a line in
 `ADAPTERS`. Add a new target's id to `state/seen.json` with an empty list when you already know the
 board has no student reqs, so the first run alerts instead of seeding quietly.
@@ -94,7 +107,7 @@ board has no student reqs, so the first run alerts instead of seeding quietly.
 ## Local use
 
 ```bash
-npm test                       # 39 tests, no network
+npm test                       # 44 tests, no network
 npm run check                  # hits the real boards, rewrites state/seen.json and new.json
 NTFY_TOPIC=... npm run notify  # pushes whatever is in new.json
 NTFY_TOPIC=... node scripts/notify.mjs --test

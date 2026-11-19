@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchWorkday, normalizeWorkday, workdayJobsUrl } from '../scripts/lib/boards.mjs';
-import { fetchTarget, fetchGreenhouse, normalizeGreenhouse } from '../scripts/lib/boards.mjs';
+import { fetchTarget, fetchGreenhouse, normalizeGreenhouse, fetchShazamme, normalizeShazamme } from '../scripts/lib/boards.mjs';
 import { isStudentReq } from '../scripts/lib/match.mjs';
 
 const ZOOM = {
@@ -92,6 +92,7 @@ test('the shipped targets file is wired to a real adapter', async () => {
   const required = {
     workday: ['id', 'company', 'host', 'site', 'tenant'],
     greenhouse: ['id', 'company', 'token'],
+    shazamme: ['id', 'company', 'siteId'],
   };
   for (const target of targets) {
     assert.ok(target.board in required, target.board);
@@ -172,4 +173,53 @@ test("HubSpot's own title rules: engineering interns in, its sales intern and BD
   assert.equal(keep('Software Engineering Co-op'), true);
   assert.equal(keep('LATAM Sales Intern - January 2027'), false);
   assert.equal(keep('BDR - Canada & University Graduates (AH-P) (P)'), false);
+});
+
+// Shazamme: the jobs feed Zoom's own careers site (careers.zoom.us) loads. Zoom's Workday API went
+// behind a Cloudflare challenge on 2026-11-17; this feed is a plain public GET with the same reqs.
+const ZOOM_SHZ = { id: 'zoom', company: 'Zoom', board: 'shazamme', siteId: 'a5bcebfa-981b-46cd-b46f-ad91a50505b8' };
+const SHZ_JOB = { data: {
+  jobID: '9d76bce0-9fb9-4380-bd6c-88e1d8100149',
+  referenceNumber: 'R18266',
+  jobName: 'Software Engineer - Intern',
+  fullAddress: 'San Jose (CA), United States of America',
+  jobURL: 'https://careers.zoom.us/job-details/software-engineer-intern-1807112',
+  activeStatus: true,
+} };
+
+test('a Shazamme board is one GET on the site job feed', async () => {
+  const calls = [];
+  const get = async (url) => { calls.push(url); return []; };
+  await fetchTarget(ZOOM_SHZ, { get });
+  assert.deepEqual(calls, ['https://shazamme.io/job-results/a5bcebfa-981b-46cd-b46f-ad91a50505b8']);
+});
+
+test('a Shazamme job keeps the Workday req id, so ids match what Workday gave before', () => {
+  assert.deepEqual(normalizeShazamme(ZOOM_SHZ, SHZ_JOB), {
+    id: 'zoom:R18266',
+    reqId: 'R18266',
+    company: 'Zoom',
+    title: 'Software Engineer - Intern',
+    location: 'San Jose (CA), United States of America',
+    url: 'https://careers.zoom.us/job-details/software-engineer-intern-1807112',
+  });
+});
+
+test('a Shazamme job with no req id falls back to its job id', () => {
+  const job = normalizeShazamme(ZOOM_SHZ, { data: { ...SHZ_JOB.data, referenceNumber: null } });
+  assert.equal(job.id, 'zoom:9d76bce0-9fb9-4380-bd6c-88e1d8100149');
+});
+
+test('Shazamme keeps active student reqs only', async () => {
+  const get = async () => [
+    SHZ_JOB,
+    { data: { ...SHZ_JOB.data, referenceNumber: 'R2', jobName: 'Enterprise Account Executive' } },
+    { data: { ...SHZ_JOB.data, referenceNumber: 'R3', activeStatus: false } },
+  ];
+  const jobs = await fetchShazamme(ZOOM_SHZ, { get });
+  assert.deepEqual(jobs.map((job) => job.id), ['zoom:R18266']);
+});
+
+test('a Shazamme answer that is not a list is an error, not an empty board', async () => {
+  await assert.rejects(fetchShazamme(ZOOM_SHZ, { get: async () => ({ error: 'nope' }) }), /job list/);
 });

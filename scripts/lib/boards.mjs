@@ -8,6 +8,11 @@
 // not a promise that a differently worded student req would surface at all.
 //
 // Greenhouse is simpler: one public GET returns the whole board (Reddit carries about 145 jobs).
+//
+// Shazamme is the jobs feed behind Zoom's own careers site (careers.zoom.us). Zoom's Workday API
+// started answering every script with a Cloudflare challenge (HTTP 429, cf-mitigated: challenge) on
+// 2026-11-17, while this feed is a plain public GET carrying the same reqs and the same Workday req
+// ids, usually within hours of posting.
 
 import { getJson, postJson } from './fetch.mjs';
 import { isStudentReq } from './match.mjs';
@@ -70,7 +75,32 @@ export async function fetchGreenhouse(target, { get = getJson } = {}) {
     .filter((job) => isStudentReq(job.title, target));
 }
 
-export const ADAPTERS = { workday: fetchWorkday, greenhouse: fetchGreenhouse };
+export function shazammeJobsUrl(target) {
+  return `https://shazamme.io/job-results/${target.siteId}`;
+}
+
+export function normalizeShazamme(target, posting) {
+  const job = posting.data ?? {};
+  return {
+    id: `${target.id}:${job.referenceNumber || job.jobID}`,
+    reqId: job.referenceNumber || null,
+    company: target.company,
+    title: job.jobName,
+    location: job.fullAddress ?? '',
+    url: job.jobURL,
+  };
+}
+
+export async function fetchShazamme(target, { get = getJson } = {}) {
+  const body = await get(shazammeJobsUrl(target));
+  if (!Array.isArray(body)) throw new Error(`${target.id}: Shazamme answered without a job list`);
+  return body
+    .filter((posting) => posting?.data?.activeStatus !== false)
+    .map((posting) => normalizeShazamme(target, posting))
+    .filter((job) => isStudentReq(job.title, target));
+}
+
+export const ADAPTERS = { workday: fetchWorkday, greenhouse: fetchGreenhouse, shazamme: fetchShazamme };
 
 // A target with "todoist": true also gets a Todoist task per new req (see notify.mjs).
 export async function fetchTarget(target, options) {

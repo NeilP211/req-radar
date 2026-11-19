@@ -2,11 +2,9 @@
   {
     "id": "zoom",
     "company": "Zoom",
-    "board": "workday",
-    "host": "https://zoom.wd5.myworkdayjobs.com",
-    "site": "zoom",
-    "tenant": "zoom",
-    "note": "Zoom posted every US intern req for summer 2026 between Jan 23 and Feb 26 2026, so the summer 2027 batch is expected late Jan into Feb 2027."
+    "board": "shazamme",
+    "siteId": "a5bcebfa-981b-46cd-b46f-ad91a50505b8",
+    "note": "Zoom posted every US intern req for summer 2026 between Jan 23 and Feb 26 2026, so the summer 2027 batch is expected late Jan into Feb 2027. Read from the careers.zoom.us job feed since 2026-11-19: Zoom's Workday API (zoom.wd5.myworkdayjobs.com) answers scripts with a Cloudflare challenge since 2026-11-17."
   },
   {
     "id": "reddit",
