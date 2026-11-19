@@ -162,3 +162,14 @@ test("Reddit's own title rules: engineering interns in, new grad and business in
   assert.equal(keep('Software Engineer, New Grad'), false);
   assert.equal(keep('Senior Software Engineer, Internal Tools'), false);
 });
+
+test("HubSpot's own title rules: engineering interns in, its sales intern and BDR grad reqs out", async () => {
+  const { readFile } = await import('node:fs/promises');
+  const targets = JSON.parse(await readFile(new URL('../data/targets.json', import.meta.url), 'utf8'));
+  const hubspot = targets.find((t) => t.id === 'hubspot');
+  const keep = (title) => isStudentReq(title, hubspot);
+  assert.equal(keep('Software Engineer Intern - Summer 2027'), true);
+  assert.equal(keep('Software Engineering Co-op'), true);
+  assert.equal(keep('LATAM Sales Intern - January 2027'), false);
+  assert.equal(keep('BDR - Canada & University Graduates (AH-P) (P)'), false);
+});

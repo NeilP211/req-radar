@@ -24,5 +24,23 @@
       "\\b(marketing|sales|legal|counsel|finance|accounting|communications|brand|recruit(ing|er)?|people|policy|content|community|partnerships?|account\\s+executive)\\b"
     ],
     "note": "Also gets a Todoist task per new req, so it stays in front of you until you act. No intern reqs were on the board when this was added (2026-11-19)."
+  },
+  {
+    "id": "hubspot",
+    "company": "HubSpot",
+    "board": "greenhouse",
+    "token": "hubspotjobs",
+    "todoist": true,
+    "include": [
+      "\\bintern(ship)?s?\\b",
+      "\\bco-?op\\b"
+    ],
+    "exclude": [
+      "\\bintern(al|ational)\\b",
+      "\\bintern\\s+audit",
+      "\\b(marketing|sales|legal|counsel|finance|accounting|communications|brand|recruit(ing|er)?|people|policy|content|community|partnerships?|account\\s+executive)\\b",
+      "\\bBDR\\b"
+    ],
+    "note": "Also gets a Todoist task per new req. No engineering intern reqs were on the board when this was added (2026-11-19), only a LATAM sales intern, which the sales exclusion drops."
   }
 ]

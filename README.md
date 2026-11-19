@@ -4,7 +4,7 @@ Watches company job boards for internship and new grad reqs, and pushes a phone 
 opens. Companion to [Recruiter Radar](https://github.com/NeilP211/recruiter-radar), which watches
 career *events*. This one watches the *reqs*.
 
-Currently watching: **Zoom** (Workday) and **Reddit** (Greenhouse).
+Currently watching: **Zoom** (Workday), **Reddit** and **HubSpot** (Greenhouse).
 
 ## Why this exists
 
@@ -94,7 +94,7 @@ board has no student reqs, so the first run alerts instead of seeding quietly.
 ## Local use
 
 ```bash
-npm test                       # 38 tests, no network
+npm test                       # 39 tests, no network
 npm run check                  # hits the real boards, rewrites state/seen.json and new.json
 NTFY_TOPIC=... npm run notify  # pushes whatever is in new.json
 NTFY_TOPIC=... node scripts/notify.mjs --test
