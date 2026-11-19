@@ -1,7 +1,9 @@
 name: Check boards
 
 # Every two hours. Zoom reviews intern applications on a rolling basis and the first two weeks of a
-# posting are where the odds are, so the useful resolution is hours, not days.
+# posting are where the odds are, so the useful resolution is hours, not days. GitHub runs this
+# cron only about every eight hours in practice, so an hourly workflow_dispatch from a local launchd
+# job does most of the checking; the cron is the backup.
 
 on:
   schedule:

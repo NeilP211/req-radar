@@ -26,7 +26,10 @@ same window, late January into February 2027.
 `scripts/check.mjs` pulls every opening from each board in `data/targets.json`, keeps the titles
 that read like a student req, and compares them against `state/seen.json`, which the GitHub Action
 commits back to the repo after each run. Anything not seen before goes to `scripts/notify.mjs`,
-which pushes it to [ntfy](https://ntfy.sh). It runs every two hours.
+which pushes it to [ntfy](https://ntfy.sh). The cron asks for every two hours, but GitHub's
+scheduler is best effort and in practice fires about every eight, so a machine that is usually on
+also calls `gh workflow run check.yml` every hour (a launchd job here). The cron stays as the
+backup for when that machine is asleep.
 
 If one board fails, that board keeps its old state and is retried next run, and the other boards
 still alert. The run only fails when every board failed.
