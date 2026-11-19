@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMessages } from '../scripts/notify.mjs';
+import { buildMessages, buildTasks } from '../scripts/notify.mjs';
 
 const job = (n) => ({
   id: `zoom:R${n}`,
@@ -41,4 +41,14 @@ test('a dump larger than a batch day collapses into one summary', () => {
 test('a long title is trimmed to what a phone will show', () => {
   const [msg] = buildMessages([{ ...job(1), title: 'x'.repeat(300) }], 'topic');
   assert.ok(msg.title.length <= 120);
+});
+
+test('only reqs from todoist targets become tasks', () => {
+  assert.deepEqual(buildTasks([job(1)]), []);
+  const [task] = buildTasks([{ ...job(2), company: 'Reddit', todoist: true }]);
+  assert.equal(task.content, 'Reddit posted: AI Infrastructure Intern 2');
+  assert.equal(task.priority, 4);
+  assert.equal(task.due_string, 'today');
+  assert.match(task.description, /^https:\/\/zoom\.wd5/);
+  assert.match(task.description, /before you apply/);
 });

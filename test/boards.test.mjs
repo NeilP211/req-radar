@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchWorkday, normalizeWorkday, workdayJobsUrl } from '../scripts/lib/boards.mjs';
-import { fetchTarget } from '../scripts/lib/boards.mjs';
+import { fetchTarget, fetchGreenhouse, normalizeGreenhouse } from '../scripts/lib/boards.mjs';
+import { isStudentReq } from '../scripts/lib/match.mjs';
 
 const ZOOM = {
   id: 'zoom',
@@ -88,10 +89,76 @@ test('an unknown board type is a loud error, not a silent empty board', async ()
 test('the shipped targets file is wired to a real adapter', async () => {
   const { default: targets } = await import('../data/targets.json', { with: { type: 'json' } });
   assert.ok(targets.length > 0);
+  const required = {
+    workday: ['id', 'company', 'host', 'site', 'tenant'],
+    greenhouse: ['id', 'company', 'token'],
+  };
   for (const target of targets) {
-    assert.ok(['workday'].includes(target.board), target.board);
-    for (const field of ['id', 'company', 'host', 'site', 'tenant']) {
+    assert.ok(target.board in required, target.board);
+    for (const field of required[target.board]) {
       assert.ok(target[field], `${target.id} is missing ${field}`);
     }
   }
+});
+
+// Greenhouse: the shape Reddit's board really returns, trimmed to the fields that matter.
+const REDDIT = { id: 'reddit', company: 'Reddit', board: 'greenhouse', token: 'reddit' };
+const GH_POSTING = {
+  id: 8153017,
+  title: 'Software Engineer Intern, Summer 2027',
+  absolute_url: 'https://job-boards.greenhouse.io/reddit/jobs/8153017',
+  location: { name: 'San Francisco, CA' },
+  requisition_id: 'R-105817',
+};
+
+test('a Greenhouse board is one GET on the public jobs endpoint', async () => {
+  const calls = [];
+  const get = async (url) => { calls.push(url); return { jobs: [] }; };
+  await fetchTarget(REDDIT, { get });
+  assert.deepEqual(calls, ['https://boards-api.greenhouse.io/v1/boards/reddit/jobs']);
+});
+
+test('a Greenhouse posting normalizes with its req id and a link that resolves', () => {
+  assert.deepEqual(normalizeGreenhouse(REDDIT, GH_POSTING), {
+    id: 'reddit:8153017',
+    reqId: 'R-105817',
+    company: 'Reddit',
+    title: 'Software Engineer Intern, Summer 2027',
+    location: 'San Francisco, CA',
+    url: 'https://job-boards.greenhouse.io/reddit/jobs/8153017',
+  });
+});
+
+test('Greenhouse keeps only student reqs', async () => {
+  const get = async () => ({ jobs: [
+    GH_POSTING,
+    { ...GH_POSTING, id: 2, title: 'Account Executive, Mid-Market (DACH)' },
+  ] });
+  const jobs = await fetchGreenhouse(REDDIT, { get });
+  assert.deepEqual(jobs.map((job) => job.id), ['reddit:8153017']);
+});
+
+test('a Greenhouse answer with no jobs list is an error, not an empty board', async () => {
+  await assert.rejects(fetchGreenhouse(REDDIT, { get: async () => ({ error: 'nope' }) }), /jobs list/);
+});
+
+test('a todoist target marks its reqs, other targets do not', async () => {
+  const get = async () => ({ jobs: [GH_POSTING] });
+  const [marked] = await fetchTarget({ ...REDDIT, todoist: true }, { get });
+  const [plain] = await fetchTarget(REDDIT, { get });
+  assert.equal(marked.todoist, true);
+  assert.equal('todoist' in plain, false);
+});
+
+test("Reddit's own title rules: engineering interns in, new grad and business interns out", async () => {
+  const { readFile } = await import('node:fs/promises');
+  const targets = JSON.parse(await readFile(new URL('../data/targets.json', import.meta.url), 'utf8'));
+  const reddit = targets.find((t) => t.id === 'reddit');
+  const keep = (title) => isStudentReq(title, reddit);
+  assert.equal(keep('Software Engineer Intern, Summer 2027'), true);
+  assert.equal(keep('Machine Learning Engineer Internship'), true);
+  assert.equal(keep('Data Science Intern - Ads'), true);
+  assert.equal(keep('Marketing Intern'), false);
+  assert.equal(keep('Software Engineer, New Grad'), false);
+  assert.equal(keep('Senior Software Engineer, Internal Tools'), false);
 });

@@ -41,6 +41,7 @@ jobs:
         if: inputs.test_push
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TODOIST_TOKEN: ${{ secrets.TODOIST_TOKEN }}
         run: node scripts/notify.mjs --test
 
       - name: Check the boards
@@ -53,6 +54,7 @@ jobs:
         if: ${{ !inputs.test_push }}
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TODOIST_TOKEN: ${{ secrets.TODOIST_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: node scripts/notify.mjs new.json
 

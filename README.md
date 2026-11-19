@@ -4,7 +4,7 @@ Watches company job boards for internship and new grad reqs, and pushes a phone 
 opens. Companion to [Recruiter Radar](https://github.com/NeilP211/recruiter-radar), which watches
 career *events*. This one watches the *reqs*.
 
-Currently watching: **Zoom**.
+Currently watching: **Zoom** (Workday) and **Reddit** (Greenhouse).
 
 ## Why this exists
 
@@ -28,6 +28,10 @@ that read like a student req, and compares them against `state/seen.json`, which
 commits back to the repo after each run. Anything not seen before goes to `scripts/notify.mjs`,
 which pushes it to [ntfy](https://ntfy.sh). It runs every two hours.
 
+If one board fails (Zoom's Workday answers HTTP 429 a few times a day), that board keeps its old
+state and is retried next run, and the other boards still alert. The run only fails when every
+board failed.
+
 Three decisions worth knowing:
 
 - **The whole board is fetched, not a keyword search.** Workday's relevance search answers "Intern"
@@ -45,7 +49,14 @@ Pushes go to the same ntfy topic Recruiter Radar uses, so a phone already subscr
 new setup. The topic name is the only secret: anyone who knows it can read the pushes. It lives in
 the `NTFY_TOPIC` repo secret and in `.env.local` locally, which is gitignored.
 
+A target marked `"todoist": true` also turns each new req into a priority 1 Todoist task due
+today, with the link, so a req you care most about stays in front of you until you act on it
+instead of scrolling away with the push. The token lives in the
+`TODOIST_TOKEN` repo secret; without it the tasks are skipped and the pushes still go out.
+
 To confirm the path end to end, run the Check boards workflow manually with **test_push** ticked.
+It sends a test push and, if `TODOIST_TOKEN` is set, makes a read only call to prove the token
+works without leaving a task behind.
 
 ## Adding a company
 
@@ -68,13 +79,22 @@ Add an entry to `data/targets.json`:
 path. A target may also carry its own `include` and `exclude` arrays of regex strings to override
 the default title patterns.
 
-Only Workday has an adapter today. Another board type is a function in `scripts/lib/boards.mjs`
-that returns `{ id, title, location, url, company }` plus a line in `ADAPTERS`.
+A Greenhouse board needs only its board token, the last part of
+`https://job-boards.greenhouse.io/{token}`:
+
+```json
+{ "id": "reddit", "company": "Reddit", "board": "greenhouse", "token": "reddit", "todoist": true }
+```
+
+Workday and Greenhouse have adapters. Another board type is a function in
+`scripts/lib/boards.mjs` that returns `{ id, title, location, url, company }` plus a line in
+`ADAPTERS`. Add a new target's id to `state/seen.json` with an empty list when you already know the
+board has no student reqs, so the first run alerts instead of seeding quietly.
 
 ## Local use
 
 ```bash
-npm test                       # 28 tests, no network
+npm test                       # 38 tests, no network
 npm run check                  # hits the real boards, rewrites state/seen.json and new.json
 NTFY_TOPIC=... npm run notify  # pushes whatever is in new.json
 NTFY_TOPIC=... node scripts/notify.mjs --test

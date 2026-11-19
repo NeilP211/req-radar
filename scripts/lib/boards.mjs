@@ -6,8 +6,10 @@
 // Fetching the whole board and filtering here beats passing searchText to Workday: its relevance
 // search answered "Intern" with 45 jobs, most of which had nothing to do with interns, and it is
 // not a promise that a differently worded student req would surface at all.
+//
+// Greenhouse is simpler: one public GET returns the whole board (Reddit carries about 145 jobs).
 
-import { postJson } from './fetch.mjs';
+import { getJson, postJson } from './fetch.mjs';
 import { isStudentReq } from './match.mjs';
 
 const PAGE = 20;
@@ -45,10 +47,35 @@ export async function fetchWorkday(target, { post = postJson } = {}) {
   return jobs.filter((job) => isStudentReq(job.title, target));
 }
 
-export const ADAPTERS = { workday: fetchWorkday };
+export function greenhouseJobsUrl(target) {
+  return `https://boards-api.greenhouse.io/v1/boards/${target.token}/jobs`;
+}
 
+export function normalizeGreenhouse(target, posting) {
+  return {
+    id: `${target.id}:${posting.id}`,
+    reqId: posting.requisition_id ?? null,
+    company: target.company,
+    title: posting.title,
+    location: posting.location?.name ?? '',
+    url: posting.absolute_url,
+  };
+}
+
+export async function fetchGreenhouse(target, { get = getJson } = {}) {
+  const body = await get(greenhouseJobsUrl(target));
+  if (!Array.isArray(body?.jobs)) throw new Error(`${target.id}: Greenhouse answered without a jobs list`);
+  return body.jobs
+    .map((posting) => normalizeGreenhouse(target, posting))
+    .filter((job) => isStudentReq(job.title, target));
+}
+
+export const ADAPTERS = { workday: fetchWorkday, greenhouse: fetchGreenhouse };
+
+// A target with "todoist": true also gets a Todoist task per new req (see notify.mjs).
 export async function fetchTarget(target, options) {
   const adapter = ADAPTERS[target.board];
   if (!adapter) throw new Error(`${target.id}: no adapter for board "${target.board}"`);
-  return adapter(target, options);
+  const jobs = await adapter(target, options);
+  return target.todoist ? jobs.map((job) => ({ ...job, todoist: true })) : jobs;
 }

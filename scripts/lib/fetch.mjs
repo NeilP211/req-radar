@@ -9,19 +9,14 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function postJson(url, body, { retries = RETRIES, wait = sleep } = {}) {
+async function requestJson(url, init, { retries = RETRIES, wait = sleep } = {}) {
   let lastError;
   for (let attempt = 0; attempt < retries; attempt += 1) {
     if (attempt > 0) await wait(1000 * 2 ** (attempt - 1));
     try {
       const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'User-Agent': USER_AGENT,
-        },
-        body: JSON.stringify(body),
+        ...init,
+        headers: { Accept: 'application/json', 'User-Agent': USER_AGENT, ...init.headers },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -30,4 +25,16 @@ export async function postJson(url, body, { retries = RETRIES, wait = sleep } = 
     }
   }
   throw new Error(`${url}: ${lastError.message}`);
+}
+
+export function postJson(url, body, options) {
+  return requestJson(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }, options);
+}
+
+export function getJson(url, options) {
+  return requestJson(url, { method: 'GET', headers: {} }, options);
 }
